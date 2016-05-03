@@ -113,71 +113,57 @@ public class DynamoDBSessionStore extends StoreBase {
 			keysTimestamp = System.currentTimeMillis();
 		}
 
-		return keys.toArray(new String[0]);
+		return keys.toArray(new String[keys.size()]);
 
 	}
 
 	@Override
 	public Session load(String id) throws ClassNotFoundException, IOException {
-
+		System.out.println("load " + id + " / " + sessionTableName);
 		ByteBuffer byteBuffer = DynamoUtils.loadItemBySessionId(dynamo, sessionTableName, id);
-		if (byteBuffer == null) {
+		if (byteBuffer == null || byteBuffer.remaining() > 0) {
 			keys.remove(id);
 			return (null);
 		}
 
 		if (logger.isDebugEnabled()) {
-			logger.debug(sm.getString(getStoreName() + ".loading", id, sessionTableName));
+			logger.debug("loading" + id + " / " + sessionTableName);
 		}
+		System.out.println("loading" + id + " / " + sessionTableName);
 
-		ByteArrayInputStream fis = null;
-		BufferedInputStream bis = null;
 		ObjectInputStream ois = null;
 		Loader loader = null;
 		ClassLoader classLoader = null;
-		try {
-			fis = new ByteArrayInputStream(byteBuffer.array());
-			bis = new BufferedInputStream(fis);
-			Context context = manager.getContext();
+		ClassLoader oldThreadContextCL = Thread.currentThread().getContextClassLoader();
 
-			if (context != null) {
+		try (ByteArrayInputStream fis = new ByteArrayInputStream(byteBuffer.array());
+				BufferedInputStream bis = new BufferedInputStream(fis)) {
+			Context context = getManager().getContext();
+			if (context != null)
 				loader = context.getLoader();
-			}
-			if (loader != null) {
+			if (loader != null)
 				classLoader = loader.getClassLoader();
-			}
 			if (classLoader != null) {
+				Thread.currentThread().setContextClassLoader(classLoader);
 				ois = new CustomObjectInputStream(bis, classLoader);
 			} else {
 				ois = new ObjectInputStream(bis);
 			}
-		} catch (Exception e) {
-			if (bis != null) {
-				try {
-					bis.close();
-				} catch (IOException f) {
-				}
-			}
-			if (fis != null) {
-				try {
-					fis.close();
-				} catch (IOException f) {
-				}
-			}
-			throw e;
-		}
-
-		try {
 			StandardSession session = (StandardSession) manager.createEmptySession();
 			session.readObjectData(ois);
 			session.setManager(manager);
 			keys.add(id);
 			return (session);
 		} finally {
-			try {
-				ois.close();
-			} catch (IOException f) {
+			if (ois != null) {
+				// Close the input stream
+				try {
+					ois.close();
+				} catch (IOException f) {
+					// Ignore
+				}
 			}
+			Thread.currentThread().setContextClassLoader(oldThreadContextCL);
 		}
 	}
 
@@ -187,36 +173,27 @@ public class DynamoDBSessionStore extends StoreBase {
 		String id = session.getIdInternal();
 
 		if (logger.isDebugEnabled()) {
-			logger.debug(sm.getString(getStoreName() + ".saving", id, sessionTableName));
+			logger.debug("saving" + id + " / " + sessionTableName);
 		}
+		System.out.println("saving" + id + " / " + sessionTableName);
 
 		ByteArrayOutputStream fos = new ByteArrayOutputStream();
-		ObjectOutputStream oos = null;
-		try {
-			oos = new ObjectOutputStream(new BufferedOutputStream(fos));
-		} catch (IOException e) {
-			try {
-				fos.close();
-			} catch (IOException f) {
-			}
-			throw e;
-		}
-
-		try {
+		try (ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(fos))) {
 			((StandardSession) session).writeObjectData(oos);
-		} finally {
-			oos.close();
 		}
 		DynamoUtils.storeSession(dynamo, sessionTableName, id, ByteBuffer.wrap(fos.toByteArray()));
+		System.out.println("saved");
 		keys.add(id);
 	}
 
 	@Override
 	public void remove(String id) {
 		if (logger.isDebugEnabled()) {
-			logger.debug(sm.getString(getStoreName() + ".removing", id, sessionTableName));
+			logger.debug("removing" + id + " / " + sessionTableName);
 		}
+		System.out.println("removing" + id + " / " + sessionTableName);
 		DynamoUtils.deleteSession(dynamo, sessionTableName, id);
 		keys.remove(id);
+		System.out.println("removed	");
 	}
 }

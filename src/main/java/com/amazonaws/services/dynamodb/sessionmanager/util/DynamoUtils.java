@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.services.dynamodb.sessionmanager.DynamoDBSessionManager;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -157,8 +158,8 @@ public class DynamoUtils {
 				Thread.sleep(1000 * 5);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				throw new AmazonClientException(
-						"Interrupted while waiting for table '" + tableName + "' to become active.", e);
+				throw new AmazonClientException("Interrupted while waiting for table '" + tableName
+						+ "' to become active.", e);
 			}
 		}
 
@@ -171,8 +172,8 @@ public class DynamoUtils {
 
 		request.withKeySchema(new KeySchemaElement().withAttributeName(SESSION_ID_KEY).withKeyType(KeyType.HASH));
 
-		request.withAttributeDefinitions(
-				new AttributeDefinition().withAttributeName(SESSION_ID_KEY).withAttributeType(ScalarAttributeType.S));
+		request.withAttributeDefinitions(new AttributeDefinition().withAttributeName(SESSION_ID_KEY).withAttributeType(
+				ScalarAttributeType.S));
 
 		request.setProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(readCapacityUnits)
 				.withWriteCapacityUnits(writeCapacityUnits));
