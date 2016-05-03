@@ -207,6 +207,10 @@ public class DynamoDBSessionManager extends PersistentManagerBase {
 	// Logger Utility Functions
 	//
 
+	public static void info(String s) {
+		logger.info(s);
+	}
+
 	public static void debug(String s) {
 		logger.debug(s);
 	}
