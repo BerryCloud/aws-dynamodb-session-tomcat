@@ -27,12 +27,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.catalina.Container;
+import org.apache.catalina.Context;
 import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
 import org.apache.catalina.session.StandardSession;
 import org.apache.catalina.session.StoreBase;
 import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
 
 import com.amazonaws.services.dynamodb.sessionmanager.util.DynamoUtils;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -45,19 +47,21 @@ import com.amazonaws.services.dynamodbv2.model.TableDescription;
  */
 public class DynamoDBSessionStore extends StoreBase {
 
+	private static final Log logger = LogFactory.getLog(DynamoDBSessionStore.class);
+
 	private static final String name = "AmazonDynamoDBSessionStore";
-	private static final String info = name + "/1.0";
+	// private static final String info = name + "/1.0";
 
 	private AmazonDynamoDBClient dynamo;
 	private String sessionTableName;
 
 	private Set<String> keys = Collections.synchronizedSet(new HashSet<String>());
-	private long keysTimestamp=0;
+	private long keysTimestamp = 0;
 
-	@Override
-	public String getInfo() {
-		return info;
-	}
+	// @Override
+	// public String getInfo() {
+	// return info;
+	// }
 
 	@Override
 	public String getStoreName() {
@@ -100,14 +104,15 @@ public class DynamoDBSessionStore extends StoreBase {
 	@Override
 	public String[] keys() throws IOException {
 		// refresh the keys stored in memory in every hour.
-		if(keysTimestamp<System.currentTimeMillis()-1000L*60*60) {
-			// Other instances can also add or remove sessions, so we have to synchronise the keys set with the DB sometimes 
-			List<String> list=DynamoUtils.loadKeys(dynamo, sessionTableName);
+		if (keysTimestamp < System.currentTimeMillis() - 1000L * 60 * 60) {
+			// Other instances can also add or remove sessions, so we have to
+			// synchronise the keys set with the DB sometimes
+			List<String> list = DynamoUtils.loadKeys(dynamo, sessionTableName);
 			keys.clear();
 			keys.addAll(list);
-			keysTimestamp=System.currentTimeMillis();
+			keysTimestamp = System.currentTimeMillis();
 		}
-		
+
 		return keys.toArray(new String[0]);
 
 	}
@@ -121,8 +126,8 @@ public class DynamoDBSessionStore extends StoreBase {
 			return (null);
 		}
 
-		if (manager.getContainer().getLogger().isDebugEnabled()) {
-			manager.getContainer().getLogger().debug(sm.getString(getStoreName() + ".loading", id, sessionTableName));
+		if (logger.isDebugEnabled()) {
+			logger.debug(sm.getString(getStoreName() + ".loading", id, sessionTableName));
 		}
 
 		ByteArrayInputStream fis = null;
@@ -133,9 +138,10 @@ public class DynamoDBSessionStore extends StoreBase {
 		try {
 			fis = new ByteArrayInputStream(byteBuffer.array());
 			bis = new BufferedInputStream(fis);
-			Container container = manager.getContainer();
-			if (container != null) {
-				loader = container.getLoader();
+			Context context = manager.getContext();
+
+			if (context != null) {
+				loader = context.getLoader();
 			}
 			if (loader != null) {
 				classLoader = loader.getClassLoader();
@@ -180,9 +186,8 @@ public class DynamoDBSessionStore extends StoreBase {
 
 		String id = session.getIdInternal();
 
-		if (manager.getContainer().getLogger().isDebugEnabled()) {
-			manager.getContainer().getLogger()
-					.debug(sm.getString(getStoreName() + ".saving", id, sessionTableName));
+		if (logger.isDebugEnabled()) {
+			logger.debug(sm.getString(getStoreName() + ".saving", id, sessionTableName));
 		}
 
 		ByteArrayOutputStream fos = new ByteArrayOutputStream();
@@ -208,8 +213,8 @@ public class DynamoDBSessionStore extends StoreBase {
 
 	@Override
 	public void remove(String id) {
-		if (manager.getContainer().getLogger().isDebugEnabled()) {
-			manager.getContainer().getLogger().debug(sm.getString(getStoreName() + ".removing", id, sessionTableName));
+		if (logger.isDebugEnabled()) {
+			logger.debug(sm.getString(getStoreName() + ".removing", id, sessionTableName));
 		}
 		DynamoUtils.deleteSession(dynamo, sessionTableName, id);
 		keys.remove(id);

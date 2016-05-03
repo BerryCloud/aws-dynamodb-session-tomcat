@@ -19,6 +19,7 @@ import java.io.File;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.session.PersistentManagerBase;
 import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -36,191 +37,193 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
  */
 public class DynamoDBSessionManager extends PersistentManagerBase {
 
-    private static final String DEFAULT_TABLE_NAME = "Tomcat_SessionState";
+	private static final Log logger = LogFactory.getLog(DynamoDBSessionManager.class);
 
-    private static final String name = "AmazonDynamoDBSessionManager";
-    private static final String info = name + "/2.0";
+	private static final String DEFAULT_TABLE_NAME = "Tomcat_SessionState";
 
-    private String regionId = "us-east-1";
-    private String endpoint;
-    private File credentialsFile;
-    private String accessKey;
-    private String secretKey;
-    private long readCapacityUnits = 10;
-    private long writeCapacityUnits = 5;
-    private boolean createIfNotExist = true;
-    private String tableName = DEFAULT_TABLE_NAME;
+	// private static final String name = "AmazonDynamoDBSessionManager";
+	// private static final String info = name + "/2.0";
 
-    private final DynamoDBSessionStore dynamoSessionStore;
+	private String regionId = "us-east-1";
+	private String endpoint;
+	private File credentialsFile;
+	private String accessKey;
+	private String secretKey;
+	private long readCapacityUnits = 10;
+	private long writeCapacityUnits = 5;
+	private boolean createIfNotExist = true;
+	private String tableName = DEFAULT_TABLE_NAME;
 
-    private static Log logger;
+	private final DynamoDBSessionStore dynamoSessionStore;
 
+	public DynamoDBSessionManager() {
+		dynamoSessionStore = new DynamoDBSessionStore();
+		setStore(dynamoSessionStore);
+		setSaveOnRestart(true);
 
-    public DynamoDBSessionManager() {
-        dynamoSessionStore = new DynamoDBSessionStore();
-        setStore(dynamoSessionStore);
-        setSaveOnRestart(true);
+		// MaxInactiveInterval controls when sessions are removed from the store
+		// setMaxInactiveInterval(60 * 60 * 2); // 2 hours
 
-        // MaxInactiveInterval controls when sessions are removed from the store
-        setMaxInactiveInterval(60 * 60 * 2); // 2 hours
+		// MaxIdleBackup controls when sessions are persisted to the store
+		setMaxIdleBackup(30); // 30 seconds
+	}
 
-        // MaxIdleBackup controls when sessions are persisted to the store
-        setMaxIdleBackup(30); // 30 seconds
-    }
+	// @Override
+	// public String getInfo() {
+	// return info;
+	// }
+	//
+	// @Override
+	// public String getName() {
+	// return name;
+	// }
 
-    @Override
-    public String getInfo() {
-        return info;
-    }
+	//
+	// Context.xml Configuration Members
+	//
 
-    @Override
-    public String getName() {
-        return name;
-    }
+	public void setRegionId(String regionId) {
+		this.regionId = regionId;
+	}
 
-    //
-    // Context.xml Configuration Members
-    //
+	public void setEndpoint(String endpoint) {
+		this.endpoint = endpoint;
+	}
 
-    public void setRegionId(String regionId) {
-        this.regionId = regionId;
-    }
+	public void setAwsAccessKey(String accessKey) {
+		this.accessKey = accessKey;
+	}
 
-    public void setEndpoint(String endpoint) {
-        this.endpoint = endpoint;
-    }
+	public void setAwsSecretKey(String secretKey) {
+		this.secretKey = secretKey;
+	}
 
-    public void setAwsAccessKey(String accessKey) {
-        this.accessKey = accessKey;
-    }
+	public void setAwsCredentialsFile(String credentialsFile) {
+		this.credentialsFile = new File(credentialsFile);
+	}
 
-    public void setAwsSecretKey(String secretKey) {
-        this.secretKey = secretKey;
-    }
+	public void setTable(String table) {
+		this.tableName = table;
+	}
 
-    public void setAwsCredentialsFile(String credentialsFile) {
-        this.credentialsFile = new File(credentialsFile);
-    }
+	public void setReadCapacityUnits(int readCapacityUnits) {
+		this.readCapacityUnits = readCapacityUnits;
+	}
 
-    public void setTable(String table) {
-        this.tableName = table;
-    }
+	public void setWriteCapacityUnits(int writeCapacityUnits) {
+		this.writeCapacityUnits = writeCapacityUnits;
+	}
 
-    public void setReadCapacityUnits(int readCapacityUnits) {
-        this.readCapacityUnits = readCapacityUnits;
-    }
+	public void setCreateIfNotExist(boolean createIfNotExist) {
+		this.createIfNotExist = createIfNotExist;
+	}
 
-    public void setWriteCapacityUnits(int writeCapacityUnits) {
-        this.writeCapacityUnits = writeCapacityUnits;
-    }
+	//
+	// Private Interface
+	//
 
-    public void setCreateIfNotExist(boolean createIfNotExist) {
-        this.createIfNotExist = createIfNotExist;
-    }
+	@Override
+	protected void initInternal() throws LifecycleException {
+		super.initInternal();
+		getContext().setDistributable(true);
+		getContext().setSessionTimeout(60 * 60 * 2);
+		// Grab the container's logger
+		// logger = getContainer().getLogger();
 
+		AWSCredentialsProvider credentialsProvider = initCredentials();
+		AmazonDynamoDBClient dynamo = new AmazonDynamoDBClient(credentialsProvider);
+		if (this.regionId != null)
+			dynamo.setRegion(RegionUtils.getRegion(this.regionId));
+		if (this.endpoint != null)
+			dynamo.setEndpoint(this.endpoint);
 
-    //
-    // Private Interface
-    //
+		initDynamoTable(dynamo);
 
-    @Override
-    protected void initInternal() throws LifecycleException {
-        this.setDistributable(true);
+		// init session store
+		dynamoSessionStore.setDynamoClient(dynamo);
+		dynamoSessionStore.setSessionTableName(this.tableName);
 
-        // Grab the container's logger
-        logger = getContainer().getLogger();
+	}
 
-        AWSCredentialsProvider credentialsProvider = initCredentials();
-        AmazonDynamoDBClient dynamo = new AmazonDynamoDBClient(credentialsProvider);
-        if (this.regionId != null) dynamo.setRegion(RegionUtils.getRegion(this.regionId));
-        if (this.endpoint != null) dynamo.setEndpoint(this.endpoint);
+	@Override
+	protected synchronized void stopInternal() throws LifecycleException {
+		super.stopInternal();
+	}
 
-        initDynamoTable(dynamo);
+	private void initDynamoTable(AmazonDynamoDBClient dynamo) {
+		boolean tableExists = DynamoUtils.doesTableExist(dynamo, this.tableName);
 
-        // init session store
-        dynamoSessionStore.setDynamoClient(dynamo);
-        dynamoSessionStore.setSessionTableName(this.tableName);
+		if (!tableExists && !createIfNotExist) {
+			throw new AmazonClientException("Session table '" + tableName + "' does not exist, "
+					+ "and automatic table creation has been disabled in context.xml");
+		}
 
-    }
+		if (!tableExists)
+			DynamoUtils.createSessionTable(dynamo, this.tableName, this.readCapacityUnits, this.writeCapacityUnits);
 
-    @Override
-    protected synchronized void stopInternal() throws LifecycleException {
-        super.stopInternal();
-    }
+		DynamoUtils.waitForTableToBecomeActive(dynamo, this.tableName);
+	}
 
-    private void initDynamoTable(AmazonDynamoDBClient dynamo) {
-        boolean tableExists = DynamoUtils.doesTableExist(dynamo, this.tableName);
+	private AWSCredentialsProvider initCredentials() {
+		// Attempt to use any explicitly specified credentials first
+		if (accessKey != null || secretKey != null) {
+			logger.debug("Reading security credentials from context.xml");
+			if (accessKey == null || secretKey == null) {
+				throw new AmazonClientException("Incomplete AWS security credentials specified in context.xml.");
+			}
+			logger.debug("Using AWS access key ID and secret key from context.xml");
+			return new StaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey));
+		}
 
-        if (!tableExists && !createIfNotExist) {
-            throw new AmazonClientException("Session table '" + tableName + "' does not exist, "
-                    + "and automatic table creation has been disabled in context.xml");
-        }
+		// Use any explicitly specified credentials properties file next
+		if (credentialsFile != null) {
+			try {
+				logger.debug("Reading security credentials from properties file: " + credentialsFile);
+				PropertiesCredentials credentials = new PropertiesCredentials(credentialsFile);
+				logger.debug("Using AWS credentials from file: " + credentialsFile);
+				return new StaticCredentialsProvider(credentials);
+			} catch (Exception e) {
+				throw new AmazonClientException(
+						"Unable to read AWS security credentials from file specified in context.xml: "
+								+ credentialsFile,
+						e);
+			}
+		}
 
-        if (!tableExists) DynamoUtils.createSessionTable(dynamo, this.tableName,
-                this.readCapacityUnits, this.writeCapacityUnits);
+		// Fall back to the default credentials chain provider if credentials
+		// weren't explicitly set
+		AWSCredentialsProvider defaultChainProvider = new DefaultAWSCredentialsProviderChain();
+		if (defaultChainProvider.getCredentials() == null) {
+			logger.debug("Loading security credentials from default credentials provider chain.");
+			throw new AmazonClientException("Unable find AWS security credentials.  "
+					+ "Searched JVM system properties, OS env vars, and EC2 instance roles.  "
+					+ "Specify credentials in Tomcat's context.xml file or put them in one of the places mentioned above.");
+		}
+		logger.debug("Using default AWS credentials provider chain to load credentials");
+		return defaultChainProvider;
+	}
 
-        DynamoUtils.waitForTableToBecomeActive(dynamo, this.tableName);
-    }
+	//
+	// Logger Utility Functions
+	//
 
-    private AWSCredentialsProvider initCredentials() {
-        // Attempt to use any explicitly specified credentials first
-        if (accessKey != null || secretKey != null) {
-            getContainer().getLogger().debug("Reading security credentials from context.xml");
-            if (accessKey == null || secretKey == null) {
-                throw new AmazonClientException("Incomplete AWS security credentials specified in context.xml.");
-            }
-            getContainer().getLogger().debug("Using AWS access key ID and secret key from context.xml");
-            return new StaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey));
-        }
+	public static void debug(String s) {
+		logger.debug(s);
+	}
 
-        // Use any explicitly specified credentials properties file next
-        if (credentialsFile != null) {
-            try {
-                getContainer().getLogger().debug("Reading security credentials from properties file: " + credentialsFile);
-                PropertiesCredentials credentials = new PropertiesCredentials(credentialsFile);
-                getContainer().getLogger().debug("Using AWS credentials from file: " + credentialsFile);
-                return new StaticCredentialsProvider(credentials);
-            } catch (Exception e) {
-                throw new AmazonClientException(
-                        "Unable to read AWS security credentials from file specified in context.xml: " + credentialsFile, e);
-            }
-        }
+	public static void warn(String s) {
+		logger.warn(s);
+	}
 
-        // Fall back to the default credentials chain provider if credentials weren't explicitly set
-        AWSCredentialsProvider defaultChainProvider = new DefaultAWSCredentialsProviderChain();
-        if (defaultChainProvider.getCredentials() == null) {
-            getContainer().getLogger().debug("Loading security credentials from default credentials provider chain.");
-            throw new AmazonClientException(
-                    "Unable find AWS security credentials.  " +
-                    "Searched JVM system properties, OS env vars, and EC2 instance roles.  " +
-                    "Specify credentials in Tomcat's context.xml file or put them in one of the places mentioned above.");
-        }
-        getContainer().getLogger().debug("Using default AWS credentials provider chain to load credentials");
-        return defaultChainProvider;
-    }
+	public static void warn(String s, Exception e) {
+		logger.warn(s, e);
+	}
 
+	public static void error(String s) {
+		logger.error(s);
+	}
 
-    //
-    // Logger Utility Functions
-    //
-
-    public static void debug(String s) {
-        logger.debug(s);
-    }
-
-    public static void warn(String s) {
-        logger.warn(s);
-    }
-
-    public static void warn(String s, Exception e) {
-        logger.warn(s, e);
-    }
-
-    public static void error(String s) {
-        logger.error(s);
-    }
-
-    public static void error(String s, Exception e) {
-        logger.error(s, e);
-    }
+	public static void error(String s, Exception e) {
+		logger.error(s, e);
+	}
 }

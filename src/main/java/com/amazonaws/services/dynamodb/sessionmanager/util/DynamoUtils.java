@@ -23,7 +23,6 @@ import java.util.Map;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.services.dynamodb.sessionmanager.DynamoDBSessionManager;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -77,7 +76,6 @@ public class DynamoUtils {
 		Map<String, AttributeValue> key = newAttributeValueMap();
 		key.put(SESSION_ID_KEY, new AttributeValue(sessionId));
 		GetItemRequest request = new GetItemRequest(tableName, key);
-		addClientMarker(request);
 		try {
 			Map<String, AttributeValue> item = dynamo.getItem(request).getItem();
 			if (item == null || !item.containsKey(SESSION_ID_KEY) || !item.containsKey(SESSION_DATA_ATTRIBUTE)) {
@@ -96,7 +94,6 @@ public class DynamoUtils {
 		key.put(SESSION_ID_KEY, new AttributeValue(sessionId));
 
 		DeleteItemRequest request = new DeleteItemRequest(tableName, key);
-		addClientMarker(request);
 
 		try {
 			dynamo.deleteItem(request);
@@ -114,7 +111,6 @@ public class DynamoUtils {
 
 		try {
 			PutItemRequest request = new PutItemRequest(tableName, attributes);
-			addClientMarker(request);
 			dynamo.putItem(request);
 		} catch (Exception e) {
 			DynamoDBSessionManager.error("Unable to save session " + sessionId, e);
@@ -124,7 +120,6 @@ public class DynamoUtils {
 	public static boolean doesTableExist(AmazonDynamoDBClient dynamo, String tableName) {
 		try {
 			DescribeTableRequest request = new DescribeTableRequest().withTableName(tableName);
-			addClientMarker(request);
 
 			TableDescription table = dynamo.describeTable(request).getTable();
 			if (table == null)
@@ -145,7 +140,6 @@ public class DynamoUtils {
 		while (System.currentTimeMillis() < endTime) {
 			try {
 				DescribeTableRequest request = new DescribeTableRequest().withTableName(tableName);
-				addClientMarker(request);
 
 				TableDescription tableDescription = dynamo.describeTable(request).getTable();
 				if (tableDescription == null)
@@ -163,8 +157,8 @@ public class DynamoUtils {
 				Thread.sleep(1000 * 5);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				throw new AmazonClientException("Interrupted while waiting for table '" + tableName
-						+ "' to become active.", e);
+				throw new AmazonClientException(
+						"Interrupted while waiting for table '" + tableName + "' to become active.", e);
 			}
 		}
 
@@ -174,21 +168,16 @@ public class DynamoUtils {
 	public static void createSessionTable(AmazonDynamoDBClient dynamo, String tableName, long readCapacityUnits,
 			long writeCapacityUnits) {
 		CreateTableRequest request = new CreateTableRequest().withTableName(tableName);
-		addClientMarker(request);
 
 		request.withKeySchema(new KeySchemaElement().withAttributeName(SESSION_ID_KEY).withKeyType(KeyType.HASH));
 
-		request.withAttributeDefinitions(new AttributeDefinition().withAttributeName(SESSION_ID_KEY).withAttributeType(
-				ScalarAttributeType.S));
+		request.withAttributeDefinitions(
+				new AttributeDefinition().withAttributeName(SESSION_ID_KEY).withAttributeType(ScalarAttributeType.S));
 
 		request.setProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(readCapacityUnits)
 				.withWriteCapacityUnits(writeCapacityUnits));
 
 		dynamo.createTable(request);
-	}
-
-	public static void addClientMarker(AmazonWebServiceRequest request) {
-		request.getRequestClientOptions().addClientMarker("DynamoSessionManager/2.0");
 	}
 
 	private static Map<String, AttributeValue> newAttributeValueMap() {

@@ -6,8 +6,8 @@
     <artifactId>aws-dynamodb-session-tomcat</artifactId>
     <packaging>jar</packaging>
     <name>Amazon DynamoDB Session Manager for Tomcat</name>
-    <version>1.2</version>
-    <description>The Amazon DynamoDB Session Manager for Tomcat provides a custom session manager for Tomcat 7 that stores session data in Amazon DynamoDB, Amazon's fully managed NoSQL database service.</description>
+    <version>1.2.8</version>
+    <description>The Amazon DynamoDB Session Manager for Tomcat provides a custom session manager for Tomcat 8 that stores session data in Amazon DynamoDB, Amazon's fully managed NoSQL database service.</description>
     <url>https://aws.amazon.com/java</url>
 
     <scm>
@@ -22,27 +22,22 @@
         </license>
     </licenses>
 
-    <developers>
-        <developer>
-            <id>amazonwebservices</id>
-            <organization>Amazon Web Services</organization>
-            <organizationUrl>https://aws.amazon.com</organizationUrl>
-            <roles>
-                <role>developer</role>
-            </roles>
-        </developer>
-    </developers>
-
     <dependencies>
-    	<dependency>
-    		<groupId>com.amazonaws</groupId>
-    		<artifactId>aws-java-sdk</artifactId>
-    		<version>1.5.4</version>
-    	</dependency>
+         <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-dynamodb</artifactId>
+            <version>1.10.63</version>
+            <optional>true</optional>
+        </dependency>   
+<!--     	<dependency> -->
+<!--     		<groupId>com.amazonaws</groupId> -->
+<!--     		<artifactId>aws-java-sdk</artifactId> -->
+<!--     		<version>1.10.47</version> -->
+<!--     	</dependency> -->
     	<dependency>
     		<groupId>org.apache.tomcat</groupId>
     		<artifactId>tomcat-catalina</artifactId>
-    		<version>7.0.47</version>
+    		<version>8.0.33</version>
     	</dependency>
     </dependencies>
 
