@@ -49,15 +49,7 @@ public class DynamoDBSessionStore extends StoreBase {
 
 	private static final Log logger = LogFactory.getLog(DynamoDBSessionStore.class);
 
-	private static final String name = "AmazonDynamoDBSessionStore"; // private
-																		// static
-																		// final
-																		// String
-																		// info
-																		// =
-																		// name
-																		// +
-																		// "/1.0";
+	private static final String name = "AmazonDynamoDBSessionStore";
 
 	private AmazonDynamoDBClient dynamo;
 	private String sessionTableName;
