@@ -41,9 +41,6 @@ public class DynamoDBSessionManager extends PersistentManagerBase {
 
 	private static final String DEFAULT_TABLE_NAME = "Tomcat_SessionState";
 
-	// private static final String name = "AmazonDynamoDBSessionManager";
-	// private static final String info = name + "/2.0";
-
 	private String regionId = "us-east-1";
 	private String endpoint;
 	private File credentialsFile;
@@ -61,22 +58,9 @@ public class DynamoDBSessionManager extends PersistentManagerBase {
 		setStore(dynamoSessionStore);
 		setSaveOnRestart(true);
 
-		// MaxInactiveInterval controls when sessions are removed from the store
-		// setMaxInactiveInterval(60 * 60 * 2); // 2 hours
-
 		// MaxIdleBackup controls when sessions are persisted to the store
 		setMaxIdleBackup(30); // 30 seconds
 	}
-
-	// @Override
-	// public String getInfo() {
-	// return info;
-	// }
-	//
-	// @Override
-	// public String getName() {
-	// return name;
-	// }
 
 	//
 	// Context.xml Configuration Members
@@ -127,8 +111,6 @@ public class DynamoDBSessionManager extends PersistentManagerBase {
 		super.initInternal();
 		getContext().setDistributable(true);
 		getContext().setSessionTimeout(60 * 60 * 2);
-		// Grab the container's logger
-		// logger = getContainer().getLogger();
 
 		AWSCredentialsProvider credentialsProvider = initCredentials();
 		AmazonDynamoDBClient dynamo = new AmazonDynamoDBClient(credentialsProvider);
@@ -203,31 +185,4 @@ public class DynamoDBSessionManager extends PersistentManagerBase {
 		return defaultChainProvider;
 	}
 
-	//
-	// Logger Utility Functions
-	//
-
-	public static void info(String s) {
-		logger.info(s);
-	}
-
-	public static void debug(String s) {
-		logger.debug(s);
-	}
-
-	public static void warn(String s) {
-		logger.warn(s);
-	}
-
-	public static void warn(String s, Exception e) {
-		logger.warn(s, e);
-	}
-
-	public static void error(String s) {
-		logger.error(s);
-	}
-
-	public static void error(String s, Exception e) {
-		logger.error(s, e);
-	}
 }
